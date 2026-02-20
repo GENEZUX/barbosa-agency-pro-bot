@@ -1,0 +1,32 @@
+# Core
+python-telegram-bot==13.7
+flask==2.3.3
+flask-login==0.6.3
+flask-wtf==1.2.1
+gunicorn==21.2.0
+python-dotenv==1.0.0
+
+# Database
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+alembic==1.13.1
+redis==5.0.1
+
+# Payments
+stripe==7.10.0
+mercadopago==2.2.3
+coinbase-commerce==1.0.1
+
+# Security
+werkzeug==3.0.1
+bcrypt==4.1.2
+pyjwt==2.8.0
+cryptography==41.0.8
+
+# Monitoring
+sentry-sdk==1.40.4
+prometheus-client==0.19.0
+
+# Async
+celery==5.3.6
+requests==2.31.0
