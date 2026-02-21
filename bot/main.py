@@ -28,6 +28,7 @@ TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '')
 ADMIN_USER_IDS = [int(x) for x in os.environ.get('ADMIN_USER_IDS', '').split(',') if x]
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 BASE_URL = os.environ.get('BASE_URL', os.environ.get('VERCEL_URL', ''))
+
 if BASE_URL and not BASE_URL.startswith('http'):
     BASE_URL = f'https://{BASE_URL}'
 
@@ -38,122 +39,120 @@ def is_admin(user_id: int) -> bool:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     admin_suffix = ' [ADMIN]' if is_admin(user.id) else ''
+    
     keyboard = [
         [InlineKeyboardButton('Ver Planes', callback_data='view_plans')],
         [InlineKeyboardButton('Mi Cuenta', callback_data='my_account'),
          InlineKeyboardButton('Soporte', url='https://t.me/BarbosaAgencyProBot')]
     ]
-    if is_admin(user.id):
-        keyboard.append([InlineKeyboardButton('Panel Admin', callback_data='admin_panel')])
     
-    text = f'Hola {user.first_name}{admin_suffix}!
+    if is_admin(user.id):
+        keyboard.append([InlineKeyboardButton('Panel Admin', callback_data='admin')])
+        
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = (
+        'Hola ' + user.first_name + admin_suffix + '!\n\n'
+        '*BARBOSA AGENCY PRO*\n'
+        'Su plataforma de automatizacion.\n\n'
+        'Que desea hacer?'
+    )
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-*BARBOSA AGENCY PRO*
-Tu asistente de automatización.
-
-¿Qué deseas hacer?'
-    if update.message:
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-    else:
-        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-
-async def view_plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    data = query.data
     
-    text = '*PLANES BARBOSA AGENCY*
+    if data == 'view_plans':
+        await show_plans(query)
+    elif data == 'my_account':
+        await show_account(query)
+    elif data == 'admin':
+        await show_admin(query)
+    elif data.startswith('buy_'):
+        tier = data.replace('buy_', '')
+        await process_payment(query, tier)
+    else:
+        await query.edit_message_text('Opcion no disponible aun.')
 
-*BASICO - $9/mes*
-*PRO - $29/mes*
-*ENTERPRISE - $99/mes*'
+async def show_plans(query):
     keyboard = [
-        [InlineKeyboardButton('Stripe - Basico $9', callback_data='pay_stripe_basic'),
-         InlineKeyboardButton('Stripe - Pro $29', callback_data='pay_stripe_pro')],
-        [InlineKeyboardButton('Stripe - Enterprise $99', callback_data='pay_stripe_enterprise')],
-        [InlineKeyboardButton('Volver', callback_data='start')]
+        [InlineKeyboardButton('BASIC $9/mes', callback_data='buy_basic')],
+        [InlineKeyboardButton('PRO $29/mes', callback_data='buy_pro')],
+        [InlineKeyboardButton('ENTERPRISE $99/mes', callback_data='buy_enterprise')],
+        [InlineKeyboardButton('Volver', callback_data='back_main')]
     ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = '*Planes Disponibles*\n\nElige el plan que mejor se adapte a tu negocio:'
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def show_account(query):
+    text = '*Mi Cuenta*\n\nGestion de cuenta en desarrollo.'
+    keyboard = [[InlineKeyboardButton('Volver', callback_data='back_main')]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
-async def handle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    tier = query.data.replace('pay_stripe_', '')
-    
-    # Sync workaround for Vercel
-    await query.answer('Procesando...', show_alert=False)
-    
-    if not STRIPE_SECRET_KEY:
-        await query.edit_message_text('Stripe no configurado.', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Volver', callback_data='view_plans')]]))
-        return
+async def show_admin(query):
+    text = '*Panel Admin*\n\nBienvenido al panel de administracion.'
+    keyboard = [[InlineKeyboardButton('Volver', callback_data='back_main')]]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
-    try:
-        import stripe
-        stripe.api_key = STRIPE_SECRET_KEY
-        price_ids = {
-            'basic': os.environ.get('STRIPE_PRICE_BASIC', 'price_placeholder'),
-            'pro': os.environ.get('STRIPE_PRICE_PRO', 'price_placeholder'),
-            'enterprise': os.environ.get('STRIPE_PRICE_ENTERPRISE', 'price_placeholder')
-        }
-        
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{'price': price_ids.get(tier), 'quantity': 1}],
-            mode='subscription',
-            success_url=f'{BASE_URL}/payment/success',
-            cancel_url=f'{BASE_URL}/payment/cancel',
+async def process_payment(query, tier):
+    prices = {
+        'basic': ('Plan BASIC', '$9/mes'),
+        'pro': ('Plan PRO', '$29/mes'),
+        'enterprise': ('Plan ENTERPRISE', '$99/mes')
+    }
+    plan_name, price = prices.get(tier, ('Plan Desconocido', 'N/A'))
+    text = (
+        f'*{plan_name} - {price}*\n\n'
+        'Para procesar el pago, contacta al administrador:\n'
+        '@BarbosaAgencyProBot\n\n'
+        'Stripe en configuracion.'
+    )
+    keyboard = [[InlineKeyboardButton('Volver', callback_data='view_plans')]]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+
+# Telegram app global
+ptb_app = None
+
+async def get_ptb_app():
+    global ptb_app
+    if ptb_app is None:
+        ptb_app = (
+            Application.builder()
+            .token(TELEGRAM_TOKEN)
+            .build()
         )
-        
-        await query.edit_message_text(f'Paga tu plan {tier.upper()} aquí:', 
-                                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Pagar Ahora', url=session.url), InlineKeyboardButton('Volver', callback_data='view_plans')]]))
-    except Exception as e:
-        logger.error(f'Stripe error: {e}')
-        await query.edit_message_text(f'Error: {str(e)[:50]}', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Volver', callback_data='view_plans')]]))
-
-async def my_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user = update.effective_user
-    text = f'*MI CUENTA*
-
-ID: `{user.id}`
-Usuario: @{user.username}
-Plan: *FREE*'
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Volver', callback_data='start')]]), parse_mode='Markdown')
-
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if not is_admin(update.effective_user.id):
-        await query.answer('No autorizado', show_alert=True)
-        return
-    await query.answer()
-    await query.edit_message_text('*PANEL ADMIN*
-Status: Online
-Deploy: Vercel', 
-                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Volver', callback_data='start')]]), parse_mode='Markdown')
-
-def setup_handlers(application: Application):
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CallbackQueryHandler(start, pattern='^start$'))
-    application.add_handler(CallbackQueryHandler(view_plans, pattern='^view_plans$'))
-    application.add_handler(CallbackQueryHandler(my_account, pattern='^my_account$'))
-    application.add_handler(CallbackQueryHandler(admin_panel, pattern='^admin_panel$'))
-    application.add_handler(CallbackQueryHandler(handle_payment, pattern='^pay_stripe_'))
-
-@app.route('/')
-def index():
-    return jsonify({'status': 'active'})
+        ptb_app.add_handler(CommandHandler('start', start))
+        ptb_app.add_handler(CallbackQueryHandler(handle_callback))
+        await ptb_app.initialize()
+    return ptb_app
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    async def process():
-        application = Application.builder().token(TELEGRAM_TOKEN).build()
-        setup_handlers(application)
-        await application.initialize()
-        update = Update.de_json(request.get_json(force=True), application.bot)
-        await application.process_update(update)
-        await application.shutdown()
-    
-    asyncio.run(process())
-    return 'OK', 200
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(_process_update())
+        loop.close()
+        return jsonify({'ok': True})
+    except Exception as e:
+        logger.error(f'Webhook error: {e}')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+async def _process_update():
+    data = request.get_json(force=True)
+    application = await get_ptb_app()
+    update = Update.de_json(data, application.bot)
+    await application.process_update(update)
+
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({'status': 'ok', 'bot': 'Barbosa Agency Pro Bot', 'version': '1.0'})
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
