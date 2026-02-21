@@ -28,7 +28,6 @@ TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '')
 ADMIN_USER_IDS = [int(x) for x in os.environ.get('ADMIN_USER_IDS', '').split(',') if x]
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 BASE_URL = os.environ.get('BASE_URL', os.environ.get('VERCEL_URL', ''))
-
 if BASE_URL and not BASE_URL.startswith('http'):
     BASE_URL = f'https://{BASE_URL}'
 
@@ -38,10 +37,8 @@ def is_admin(user_id: int) -> bool:
 # Financial Disclaimer
 FINANCIAL_DISCLAIMER = (
     "⚠️ *AVISO LEGAL IMPORTANTE*
-
 "
     "Barbosa Agency Pro Bot es una *plataforma tecnológica*. NO somos una institución financiera, banco, ni prestamista directo.
-
 "
     "*Términos:* Todas las ofertas están sujetas a aprobación de crédito. Consulta con un asesor financiero antes de decidir.
 "
@@ -61,18 +58,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if is_admin(user.id):
         keyboard.append([InlineKeyboardButton('Panel Admin', callback_data='admin')])
-        
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     text = (
-        'Hola ' + user.first_name + admin_suffix + '!
+        f"Hola {user.first_name}{admin_suffix}!
 
-'
-        '*BARBOSA AGENCY PRO*
-'
-        'Su plataforma de automatizacion y servicios inmobiliarios.
+"
+        "*BARBOSA AGENCY PRO*
+"
+        "Su plataforma de automatizacion y servicios inmobiliarios.
 
-'
-        'Que desea hacer?'
+"
+        "Que desea hacer?"
     )
     if update.message:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
@@ -92,7 +89,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_agent_loan(query)
     elif data == 'financing_dscr':
         await query.edit_message_text("Usa el comando /dscr para iniciar la calculadora interactiva.", 
-                                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Volver', callback_data='financing_menu')]]))
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Volver', callback_data='financing_menu')]]))
     elif data == 'financing_seller':
         await show_seller_financing(query)
     elif data == 'back_main':
@@ -196,17 +193,21 @@ async def dscr_calc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         val, pay, rent = map(float, context.args)
         dscr = rent / pay
         status = "✅ EXCELENTE" if dscr >= 1.25 else "👍 BUENO" if dscr >= 1.0 else "❌ NO CALIFICA"
-        response = f"📊 *RESULTADO DSCR*
+        response = (
+            f"📊 *RESULTADO DSCR*
 
-**DSCR:** {dscr:.2f}
-**Elegibilidad:** {status}
+"
+            f"*DSCR:* {dscr:.2f}
+"
+            f"*Elegibilidad:* {status}
 
-*Basado en flujo de caja de la propiedad.*"
+"
+            "*Basado en flujo de caja de la propiedad.*"
+        )
         await update.message.reply_markdown(response)
     except:
         await update.message.reply_text("Error en los números ingresados.")
 
-# ... (Previous helper functions like show_plans, show_account etc stay similar)
 async def show_plans(query):
     keyboard = [
         [InlineKeyboardButton('BASIC $9/mes', callback_data='buy_basic')],
