@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import urllib.request
 from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -36,9 +37,9 @@ def is_admin(user_id: int) -> bool:
 
 # Financial Disclaimer
 FINANCIAL_DISCLAIMER = """
-Barbosa Agency Pro Bot es una *plataforma tecnologica*.
+Barbosa Agency Pro Bot es una plataforma tecnologica.
 NO somos una institucion financiera, banco, ni prestamista directo.
-*Terminos:* Todas las ofertas estan sujetas a aprobacion de credito.
+Todas las ofertas estan sujetas a aprobacion de credito.
 Consulta con un asesor financiero antes de decidir.
 """
 
@@ -97,25 +98,11 @@ async def show_financing_menu(query):
         [InlineKeyboardButton("Financiamiento del Vendedor", callback_data='financing_seller')],
         [InlineKeyboardButton("Volver", callback_data='back_main')]
     ]
-    text = (
-        "*OPCIONES DE FINANCIAMIENTO SEGURO* "
-        "Selecciona el servicio que necesitas: "
-        "Prestamo para Agente: Capital basado en tus comisiones. "
-        "Prestamos DSCR: Califica por la propiedad, no por tus ingresos. "
-        "Financiamiento del Vendedor: Estrategias de MORE Seller Financing."
-    )
+    text = "*OPCIONES DE FINANCIAMIENTO*\nSelecciona el servicio que necesitas."
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_agent_loan(query):
-    text = (
-        "*PRESTAMO PARA AGENTES* "
-        "Acceso a capital de trabajo: "
-        "Transferencias mismo dia. "
-        "Basado en tus comisiones futuras. "
-        "Sin pagos fijos asfixiantes. "
-        "Deseas verificar elegibilidad? "
-        + FINANCIAL_DISCLAIMER
-    )
+    text = "*PRESTAMO PARA AGENTES*\nAcceso a capital basado en comisiones." + FINANCIAL_DISCLAIMER
     keyboard = [
         [InlineKeyboardButton("Verificar Elegibilidad", url="https://t.me/barbosa_finance")],
         [InlineKeyboardButton("Volver", callback_data='financing_menu')]
@@ -123,23 +110,12 @@ async def show_agent_loan(query):
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_seller_financing(query):
-    text = (
-        "*MORE SELLER FINANCING* "
-        "Convierte hipotecas bajas en ventas rapidas: "
-        "1. Vendedor mantiene su tasa baja. "
-        "2. Comprador asume financiamiento flexible. "
-        "3. Ventas en 48 horas en lugar de meses! "
-        "Aprende a implementar esta estrategia con tus listings."
-    )
+    text = "*MORE SELLER FINANCING*\nConvierte hipotecas bajas en ventas rapidas."
     keyboard = [[InlineKeyboardButton("Volver", callback_data='financing_menu')]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def dscr_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "*CALCULADORA DSCR* "
-        "Responde con: `/dscr_calc [valor] [pago] [renta]` "
-        "Ejemplo: `/dscr_calc 300000 1800 2200`"
-    )
+    text = "*CALCULADORA DSCR*\nUsa: `/dscr_calc [valor] [pago] [renta]`\nEjemplo: `/dscr_calc 300000 1800 2200`"
     await update.message.reply_markdown(text)
 
 async def dscr_calc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -150,12 +126,7 @@ async def dscr_calc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         val, pay, rent = map(float, context.args)
         dscr = rent / pay
         status = "EXCELENTE" if dscr >= 1.25 else "BUENO" if dscr >= 1.0 else "NO CALIFICA"
-        response = (
-            f"*RESULTADO DSCR* "
-            f"*DSCR:* {dscr:.2f} "
-            f"*Elegibilidad:* {status} "
-            "*Basado en flujo de caja de la propiedad.*"
-        )
+        response = f"*RESULTADO DSCR*\n*DSCR:* {dscr:.2f}\n*Elegibilidad:* {status}"
         await update.message.reply_markdown(response)
     except:
         await update.message.reply_text("Error en los numeros ingresados.")
@@ -170,17 +141,17 @@ async def show_plans(query):
     await query.edit_message_text('*Planes Disponibles*', reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_account(query):
-    text = '*Mi Cuenta* Gestion de cuenta en desarrollo.'
+    text = '*Mi Cuenta*\nGestion de cuenta en desarrollo.'
     keyboard = [[InlineKeyboardButton('Volver', callback_data='back_main')]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_admin(query):
-    text = '*Panel Admin* Bienvenido al panel de administracion.'
+    text = '*Panel Admin*\nBienvenido al panel de administracion.'
     keyboard = [[InlineKeyboardButton('Volver', callback_data='back_main')]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def process_payment(query, tier):
-    text = f'*Plan {tier.upper()}* Contacta a @BarbosaAgencyProBot para el pago.'
+    text = f'*Plan {tier.upper()}*\nContacta a @BarbosaAgencyProBot para el pago.'
     keyboard = [[InlineKeyboardButton('Volver', callback_data='view_plans')]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
@@ -215,6 +186,14 @@ async def _process_update():
     application = await get_ptb_app()
     update = Update.de_json(data, application.bot)
     await application.process_update(update)
+
+@app.route('/setup_webhook', methods=['GET'])
+def setup_webhook():
+    webhook_url = 'https://barbosa-agency-pro-bot-b19f.vercel.app/webhook'
+    api_url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={webhook_url}'
+    with urllib.request.urlopen(api_url) as resp:
+        result = resp.read().decode()
+    return jsonify({'webhook_set': True, 'url': webhook_url, 'result': result})
 
 @app.route('/health', methods=['GET'])
 def health():
