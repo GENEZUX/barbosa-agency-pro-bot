@@ -35,17 +35,10 @@ def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_USER_IDS
 
 # Financial Disclaimer
-FINANCIAL_DISCLAIMER = (
-    "⚠️ *AVISO LEGAL IMPORTANTE*
-"
-    "Barbosa Agency Pro Bot es una *plataforma tecnológica*. NO somos una institución financiera, banco, ni prestamista directo.
-"
-    "*Términos:* Todas las ofertas están sujetas a aprobación de crédito. Consulta con un asesor financiero antes de decidir.
-"
-)
-
-# Handlers
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+FINANCIAL_DISCLAIMER = """
+Barbosa Agency Pro Bot es una *plataforma tecnológica*. NO somos una institución financiera, banco, ni prestamista directo.
+*Términos:* Todas las ofertas están sujetas a aprobación de crédito. Consulta con un asesor financiero antes de decidir.
+"""
     user = update.effective_user
     admin_suffix = ' [ADMIN]' if is_admin(user.id) else ''
     
