@@ -35,6 +35,18 @@ if BASE_URL and not BASE_URL.startswith('http'):
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_USER_IDS
 
+# Financial Disclaimer
+FINANCIAL_DISCLAIMER = (
+    "⚠️ *AVISO LEGAL IMPORTANTE*
+
+"
+    "Barbosa Agency Pro Bot es una *plataforma tecnológica*. NO somos una institución financiera, banco, ni prestamista directo.
+
+"
+    "*Términos:* Todas las ofertas están sujetas a aprobación de crédito. Consulta con un asesor financiero antes de decidir.
+"
+)
+
 # Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -42,6 +54,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     keyboard = [
         [InlineKeyboardButton('Ver Planes', callback_data='view_plans')],
+        [InlineKeyboardButton('💰 Financiamiento', callback_data='financing_menu')],
         [InlineKeyboardButton('Mi Cuenta', callback_data='my_account'),
          InlineKeyboardButton('Soporte', url='https://t.me/BarbosaAgencyProBot')]
     ]
@@ -51,12 +64,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     reply_markup = InlineKeyboardMarkup(keyboard)
     text = (
-        'Hola ' + user.first_name + admin_suffix + '!\n\n'
-        '*BARBOSA AGENCY PRO*\n'
-        'Su plataforma de automatizacion.\n\n'
+        'Hola ' + user.first_name + admin_suffix + '!
+
+'
+        '*BARBOSA AGENCY PRO*
+'
+        'Su plataforma de automatizacion y servicios inmobiliarios.
+
+'
         'Que desea hacer?'
     )
-    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    if update.message:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    else:
+        await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -65,6 +86,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data == 'view_plans':
         await show_plans(query)
+    elif data == 'financing_menu':
+        await show_financing_menu(query)
+    elif data == 'financing_agent':
+        await show_agent_loan(query)
+    elif data == 'financing_dscr':
+        await query.edit_message_text("Usa el comando /dscr para iniciar la calculadora interactiva.", 
+                                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Volver', callback_data='financing_menu')]]))
+    elif data == 'financing_seller':
+        await show_seller_financing(query)
+    elif data == 'back_main':
+        await start(update, context)
     elif data == 'my_account':
         await show_account(query)
     elif data == 'admin':
@@ -75,6 +107,106 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text('Opcion no disponible aun.')
 
+async def show_financing_menu(query):
+    keyboard = [
+        [InlineKeyboardButton("💰 Préstamo para Agente", callback_data='financing_agent')],
+        [InlineKeyboardButton("🏠 Calculadora DSCR", callback_data='financing_dscr')],
+        [InlineKeyboardButton("🤝 Financiamiento del Vendedor", callback_data='financing_seller')],
+        [InlineKeyboardButton("🔙 Volver", callback_data='back_main')]
+    ]
+    text = (
+        "💰 *OPCIONES DE FINANCIAMIENTO SEGURO*
+
+"
+        "Selecciona el servicio que necesitas:
+
+"
+        "• *Préstamo para Agente*: Capital basado en tus comisiones.
+"
+        "• *Préstamos DSCR*: Califica por la propiedad, no por tus ingresos.
+"
+        "• *Financiamiento del Vendedor*: Estrategias de MORE Seller Financing.
+
+"
+        "_Instituciones reguladas únicamente._"
+    )
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+
+async def show_agent_loan(query):
+    text = (
+        "💰 *PRÉSTAMO PARA AGENTES*
+
+"
+        "Acceso a capital de trabajo estilo *Real Wallet Capital*:
+
+"
+        "✅ Transferencias mismo día.
+"
+        "✅ Basado en tus comisiones futuras.
+"
+        "✅ Sin pagos fijos asfixiantes.
+
+"
+        "¿Deseas verificar elegibilidad?
+
+" + FINANCIAL_DISCLAIMER
+    )
+    keyboard = [
+        [InlineKeyboardButton("📋 Verificar Elegibilidad", url="https://t.me/barbosa_finance")],
+        [InlineKeyboardButton("🔙 Volver", callback_data='financing_menu')]
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+
+async def show_seller_financing(query):
+    text = (
+        "🤝 *MORE SELLER FINANCING*
+
+"
+        "Convierte hipotecas bajas en ventas rápidas:
+
+"
+        "1. Vendedor mantiene su tasa baja.
+"
+        "2. Comprador asume financiamiento flexible.
+"
+        "3. ¡Ventas en 48 horas en lugar de meses!
+
+"
+        "Aprende a implementar esta estrategia con tus listings."
+    )
+    keyboard = [[InlineKeyboardButton("🔙 Volver", callback_data='financing_menu')]]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+
+async def dscr_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "📊 *CALCULADORA DSCR*
+
+"
+        "Responde con: `/dscr_calc [valor] [pago] [renta]`
+"
+        "Ejemplo: `/dscr_calc 300000 1800 2200`"
+    )
+    await update.message.reply_markdown(text)
+
+async def dscr_calc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) != 3:
+        await update.message.reply_text("Usa: /dscr_calc [valor] [pago] [renta]")
+        return
+    try:
+        val, pay, rent = map(float, context.args)
+        dscr = rent / pay
+        status = "✅ EXCELENTE" if dscr >= 1.25 else "👍 BUENO" if dscr >= 1.0 else "❌ NO CALIFICA"
+        response = f"📊 *RESULTADO DSCR*
+
+**DSCR:** {dscr:.2f}
+**Elegibilidad:** {status}
+
+*Basado en flujo de caja de la propiedad.*"
+        await update.message.reply_markdown(response)
+    except:
+        await update.message.reply_text("Error en los números ingresados.")
+
+# ... (Previous helper functions like show_plans, show_account etc stay similar)
 async def show_plans(query):
     keyboard = [
         [InlineKeyboardButton('BASIC $9/mes', callback_data='buy_basic')],
@@ -82,33 +214,26 @@ async def show_plans(query):
         [InlineKeyboardButton('ENTERPRISE $99/mes', callback_data='buy_enterprise')],
         [InlineKeyboardButton('Volver', callback_data='back_main')]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    text = '*Planes Disponibles*\n\nElige el plan que mejor se adapte a tu negocio:'
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    await query.edit_message_text('*Planes Disponibles*', reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_account(query):
-    text = '*Mi Cuenta*\n\nGestion de cuenta en desarrollo.'
+    text = '*Mi Cuenta*
+
+Gestion de cuenta en desarrollo.'
     keyboard = [[InlineKeyboardButton('Volver', callback_data='back_main')]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def show_admin(query):
-    text = '*Panel Admin*\n\nBienvenido al panel de administracion.'
+    text = '*Panel Admin*
+
+Bienvenido al panel de administracion.'
     keyboard = [[InlineKeyboardButton('Volver', callback_data='back_main')]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def process_payment(query, tier):
-    prices = {
-        'basic': ('Plan BASIC', '$9/mes'),
-        'pro': ('Plan PRO', '$29/mes'),
-        'enterprise': ('Plan ENTERPRISE', '$99/mes')
-    }
-    plan_name, price = prices.get(tier, ('Plan Desconocido', 'N/A'))
-    text = (
-        f'*{plan_name} - {price}*\n\n'
-        'Para procesar el pago, contacta al administrador:\n'
-        '@BarbosaAgencyProBot\n\n'
-        'Stripe en configuracion.'
-    )
+    text = f'*Plan {tier.upper()}*
+
+Contacta a @BarbosaAgencyProBot para el pago.'
     keyboard = [[InlineKeyboardButton('Volver', callback_data='view_plans')]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
@@ -118,12 +243,10 @@ ptb_app = None
 async def get_ptb_app():
     global ptb_app
     if ptb_app is None:
-        ptb_app = (
-            Application.builder()
-            .token(TELEGRAM_TOKEN)
-            .build()
-        )
+        ptb_app = Application.builder().token(TELEGRAM_TOKEN).build()
         ptb_app.add_handler(CommandHandler('start', start))
+        ptb_app.add_handler(CommandHandler('dscr', dscr_command))
+        ptb_app.add_handler(CommandHandler('dscr_calc', dscr_calc_command))
         ptb_app.add_handler(CallbackQueryHandler(handle_callback))
         await ptb_app.initialize()
     return ptb_app
@@ -133,7 +256,7 @@ def webhook():
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(_process_update())
+        loop.run_until_complete(_process_update())
         loop.close()
         return jsonify({'ok': True})
     except Exception as e:
@@ -146,13 +269,9 @@ async def _process_update():
     update = Update.de_json(data, application.bot)
     await application.process_update(update)
 
-@app.route('/', methods=['GET'])
+@app.route('/')
 def index():
-    return jsonify({'status': 'ok', 'bot': 'Barbosa Agency Pro Bot', 'version': '1.0'})
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+    return jsonify({'status': 'ok', 'bot': 'Barbosa Agency Pro Bot'})
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
