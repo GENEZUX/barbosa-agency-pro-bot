@@ -9,20 +9,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from telegram import Update
 from telegram.ext import Application
-
-from bot.handlers import setup_handlers
-from bot.config import get_config
-from bot.database import init_db
+from bot.main import setup_handlers, TELEGRAM_TOKEN
 
 _app = None
 
 async def get_application():
     global _app
     if _app is None:
-        config = get_config()
-        application = Application.builder().token(config.TELEGRAM_TOKEN).build()
+        application = Application.builder().token(TELEGRAM_TOKEN).build()
         setup_handlers(application)
-        await init_db()
+        await application.initialize()
         _app = application
     return _app
 
@@ -32,7 +28,8 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
-        self.wfile.write(json.dumps({'status': 'ok', 'bot': 'BarbosaAgencyProBot'}).encode())
+        response = {'status': 'ok', 'bot': 'BarbosaAgencyProBot', 'version': '2.0.0'}
+        self.wfile.write(json.dumps(response).encode())
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -41,16 +38,16 @@ class handler(BaseHTTPRequestHandler):
         try:
             update_data = json.loads(body)
             
-            async def process_update():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            async def process():
                 app = await get_application()
-                await app.initialize()
                 update = Update.de_json(update_data, app.bot)
                 await app.process_update(update)
             
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             try:
-                loop.run_until_complete(process_update())
+                loop.run_until_complete(process())
             finally:
                 loop.close()
             
